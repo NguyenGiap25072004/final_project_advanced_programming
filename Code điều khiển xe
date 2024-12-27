@@ -1,0 +1,216 @@
+#include <WiFi.h>
+#include <WiFiClient.h>
+#include <WebServer.h>
+#include <esp_camera.h>
+#include "soc/soc.h"           // Disable brownour problems
+#include "soc/rtc_cntl_reg.h"  // Disable brownour problems
+
+// Thông tin đăng nhập Wi-Fi
+const char* ssid = "Giaphoai123";
+const char* password = "12345678";
+
+// Cổng để lắng nghe các kết nối đến
+const int serverPort = 8080;
+WiFiServer server(serverPort);
+WiFiClient client;
+
+// Chân điều khiển động cơ
+const int motorA1 = 14;
+const int motorA2 = 15;
+const int motorB1 = 16;
+const int motorB2 = 4;
+
+// Các biến để lưu trữ lệnh
+String command;
+
+// Cấu hình cho ESP32-CAM (có thể thay đổi tùy theo mô-đun)
+camera_config_t config;
+
+void setup() {
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
+
+  Serial.begin(115200);
+
+  // Thiết lập chân điều khiển động cơ làm đầu ra
+  pinMode(motorA1, OUTPUT);
+  pinMode(motorA2, OUTPUT);
+  pinMode(motorB1, OUTPUT);
+  pinMode(motorB2, OUTPUT);
+
+  // Dừng tất cả các động cơ ban đầu
+  stopMotion();
+
+  // Kết nối với Wi-Fi
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.println("Connecting to WiFi...");
+  }
+  Serial.println("Connected to WiFi");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+
+  // Bắt đầu máy chủ
+  server.begin();
+  Serial.println("Server started");
+
+  //Camera
+  config.ledc_channel = LEDC_CHANNEL_0;
+  config.ledc_timer = LEDC_TIMER_0;
+  config.pin_d0 = 5;
+  config.pin_d1 = 18;
+  config.pin_d2 = 19;
+  config.pin_d3 = 21;
+  config.pin_d4 = 36;
+  config.pin_d5 = 39;
+  config.pin_d6 = 34;
+  config.pin_d7 = 35;
+  config.pin_xclk = 0;
+  config.pin_pclk = 22;
+  config.pin_vsync = 25;
+  config.pin_href = 23;
+  config.pin_sscb_sda = 26;
+  config.pin_sscb_scl = 27;
+  config.pin_pwdn = 32;
+  config.pin_reset = -1;
+  config.xclk_freq_hz = 20000000;
+  config.pixel_format = PIXFORMAT_JPEG; //YUV422,GRAYSCALE,RGB565,JPEG
+
+  //init with high specs to pre-allocate larger buffers
+  if (psramFound()) {
+    config.frame_size = FRAMESIZE_UXGA; // UP TO FRAMESIZE_UXGA can work
+    config.jpeg_quality = 10; //how high to push sensor quality
+    config.fb_count = 2;
+  } else {
+    config.frame_size = FRAMESIZE_SVGA;
+    config.jpeg_quality = 12;
+    config.fb_count = 1;
+  }
+
+  // Camera init
+  esp_err_t err = esp_camera_init(&config);
+  if (err != ESP_OK) {
+    Serial.printf("Camera init failed with error 0x%x", err);
+    delay(1000);
+    ESP.restart();
+  }
+}
+
+void loop() {
+  client = server.available(); // Lắng nghe các kết nối máy khách
+
+  if (client) {
+    Serial.println("New Client.");
+    String currentLine = "";
+
+    while (client.connected()) {
+      if (client.available()) {
+        char c = client.read();
+        Serial.write(c);
+        if (c == '\n') {
+          if (currentLine.length() == 0) {
+            // Gửi phản hồi HTTP
+            client.println("HTTP/1.1 200 OK");
+            client.println("Content-type:text/html");
+            client.println("Connection: close");
+            client.println();
+            client.println("<!DOCTYPE html><html>");
+            client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+            client.println("<link rel=\"icon\" href=\"data:,\">");
+            client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
+            client.println(".button { background-color: #4CAF50; border: none; color: white; padding: 16px 40px;");
+            client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
+            client.println(".button2 {background-color: #555555;}</style></head>");
+            client.println("<body><h1>ESP32-CAM Robot Car</h1>");
+
+            if (command.indexOf("forward") > 0) {
+              client.println("<p>Forward</p>");
+              forward();
+            } else if (command.indexOf("backward") > 0) {
+              client.println("<p>Backward</p>");
+              backward();
+            } else if (command.indexOf("left") > 0) {
+              client.println("<p>Left</p>");
+              left();
+            } else if (command.indexOf("right") > 0) {
+              client.println("<p>Right</p>");
+              right();
+            } else if (command.indexOf("stop") > 0) {
+              client.println("<p>Stop</p>");
+              stopMotion();
+            }
+
+            client.println("<p><a href=\"/?forward\"><button class=\"button\">FORWARD</button></a></p>");
+            client.println("<p><a href=\"/?backward\"><button class=\"button\">BACKWARD</button></a></p>");
+            client.println("<p><a href=\"/?left\"><button class=\"button\">LEFT</button></a></p>");
+            client.println("<p><a href=\"/?right\"><button class=\"button\">RIGHT</button></a></p>");
+            client.println("<p><a href=\"/?stop\"><button class=\"button button2\">STOP</button></a></p>");
+            client.println("</body></html>");
+            client.println();
+            break;
+
+          } else {
+            currentLine = "";
+          }
+
+        } else if (c != '\r') {
+          currentLine += c;
+        }
+        if (currentLine.endsWith("GET /?")) {
+          // Đặt command rỗng khi client kết nối đầu tiên
+          command = "";
+        }
+        else if (currentLine.endsWith("GET /?forward")) {
+          command = "forward";
+        } else if (currentLine.endsWith("GET /?backward")) {
+          command = "backward";
+        } else if (currentLine.endsWith("GET /?left")) {
+          command = "left";
+        } else if (currentLine.endsWith("GET /?right")) {
+          command = "right";
+        } else if (currentLine.endsWith("GET /?stop")) {
+          command = "stop";
+        }
+      }
+    }
+    client.stop();
+    Serial.println("Client Disconnected.");
+    Serial.println("");
+  }
+}
+
+// Các hàm điều khiển động cơ
+void forward() {
+  digitalWrite(motorA1, HIGH);
+  digitalWrite(motorA2, LOW);
+  digitalWrite(motorB1, HIGH);
+  digitalWrite(motorB2, LOW);
+}
+
+void backward() {
+  digitalWrite(motorA1, LOW);
+  digitalWrite(motorA2, HIGH);
+  digitalWrite(motorB1, LOW);
+  digitalWrite(motorB2, HIGH);
+}
+
+void left() {
+  digitalWrite(motorA1, LOW);
+  digitalWrite(motorA2, HIGH);
+  digitalWrite(motorB1, HIGH);
+  digitalWrite(motorB2, LOW);
+}
+
+void right() {
+  digitalWrite(motorA1, HIGH);
+  digitalWrite(motorA2, LOW);
+  digitalWrite(motorB1, LOW);
+  digitalWrite(motorB2, HIGH);
+}
+
+void stopMotion() {
+  digitalWrite(motorA1, LOW);
+  digitalWrite(motorA2, LOW);
+  digitalWrite(motorB1, LOW);
+  digitalWrite(motorB2, LOW);
+}
