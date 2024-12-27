@@ -1,0 +1,193 @@
+#include <iostream>
+#include <string>
+#include <SDL.h>
+#include <SDL_net.h>
+
+// Kích thước cửa sổ
+const int WINDOW_WIDTH = 800;
+const int WINDOW_HEIGHT = 600;
+
+// Lớp đại diện cho robot
+class Robot {
+public:
+    Robot() : x(WINDOW_WIDTH / 2), y(WINDOW_HEIGHT / 2), width(20), height(40), angle(0.0) {}
+
+    void draw(SDL_Renderer* renderer) {
+        // Vẽ thân robot
+        SDL_Rect body = { x - width / 2, y - height / 2, width, height };
+        SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); // Màu đỏ
+        SDL_RenderFillRect(renderer, &body);
+
+        // Vẽ hướng của robot (ví dụ: một đường thẳng)
+        int directionX = x + cos(angle) * height / 2;
+        int directionY = y + sin(angle) * height / 2;
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255); // Màu trắng
+        SDL_RenderDrawLine(renderer, x, y, directionX, directionY);
+    }
+
+    void updatePosition(float newX, float newY)
+    {
+        x = newX * 100;
+        y = newY * 100;
+        if (x < 0) x = 0;
+        if (x > WINDOW_WIDTH) x = WINDOW_WIDTH;
+        if (y < 0) y = 0;
+        if (y > WINDOW_HEIGHT) y = WINDOW_HEIGHT;
+
+    }
+
+    void updateAngle(float newAngle)
+    {
+        angle = newAngle;
+    }
+private:
+    int x, y;
+    int width, height;
+    float angle;
+};
+
+int main(int argc, char* argv[]) {
+    // Khởi tạo SDL
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
+        std::cerr << "SDL_Init Error: " << SDL_GetError() << std::endl;
+        return 1;
+    }
+
+    // Khởi tạo SDL_net
+    if (SDLNet_Init() != 0) {
+        std::cerr << "SDLNet_Init Error: " << SDLNet_GetError() << std::endl;
+        return 1;
+    }
+
+    // Tạo cửa sổ
+    SDL_Window* window = SDL_CreateWindow("Robot Control", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
+    if (!window) {
+        std::cerr << "SDL_CreateWindow Error: " << SDL_GetError() << std::endl;
+        SDL_Quit();
+        return 1;
+    }
+
+    // Tạo renderer
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    if (!renderer) {
+        std::cerr << "SDL_CreateRenderer Error: " << SDL_GetError() << std::endl;
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
+    }
+
+    // Địa chỉ IP và cổng của ESP32-CAM
+    const char* esp32IP = "192.168.1.102";  // Thay thế bằng địa chỉ IP của ESP32
+    const int esp32Port = 8080;
+
+    // Kết nối với ESP32
+    IPaddress ip;
+    TCPsocket clientSocket;
+    if (SDLNet_ResolveHost(&ip, esp32IP, esp32Port) != 0) {
+        std::cerr << "SDLNet_ResolveHost Error: " << SDLNet_GetError() << std::endl;
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        SDLNet_Quit();
+        SDL_Quit();
+        return 1;
+    }
+
+    clientSocket = SDLNet_TCP_Open(&ip);
+    if (!clientSocket) {
+        std::cerr << "SDLNet_TCP_Open Error: " << SDLNet_GetError() << std::endl;
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        SDLNet_Quit();
+        SDL_Quit();
+        return 1;
+    }
+
+    // Tạo robot
+    Robot robot;
+
+    // Vòng lặp trò chơi
+    bool isRunning = true;
+    SDL_Event event;
+    while (isRunning) {
+        // Xử lý sự kiện
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_QUIT) {
+                isRunning = false;
+            } else if (event.type == SDL_KEYDOWN) {
+                // Gửi lệnh đến ESP32 dựa trên phím được nhấn
+                std::string command;
+                switch (event.key.keysym.sym) {
+                    case SDLK_UP:
+                        command = "GET /?forward\n";
+                        break;
+                    case SDLK_DOWN:
+                        command = "GET /?backward\n";
+                        break;
+                    case SDLK_LEFT:
+                        command = "GET /?left\n";
+                        break;
+                    case SDLK_RIGHT:
+                        command = "GET /?right\n";
+                        break;
+                    case SDLK_SPACE:
+                        command = "GET /?stop\n";
+                        break;
+                }
+                if (!command.empty())
+                {
+                    int sentBytes = SDLNet_TCP_Send(clientSocket, command.c_str(), command.length());
+                    if (sentBytes < command.length())
+                    {
+                        std::cerr << "SDLNet_TCP_Send Error: " << SDLNet_GetError() << std::endl;
+                    }
+                }
+            }
+        }
+
+        // Nhận dữ liệu từ ESP32 (Giả sử ESP32 đang gửi tọa độ x, y và góc)
+        char buffer[1024] = { 0 };
+        int bytesReceived = SDLNet_TCP_Recv(clientSocket, buffer, 1024);
+        if (bytesReceived > 0)
+        {
+            std::cout << "Received from ESP32: " << buffer << std::endl;
+
+            float newX, newY, newAngle;
+            sscanf(buffer, "%f,%f,%f", &newX, &newY, &newAngle);
+            robot.updatePosition(newX, newY);
+            robot.updateAngle(newAngle);
+        }
+        else if (bytesReceived == 0)
+        {
+            // ESP32 ngắt kết nối
+            std::cout << "ESP32 disconnected" << std::endl;
+            isRunning = false; // Thoát khỏi vòng lặp trò chơi
+        }
+        else if (bytesReceived < 0)
+        {
+            std::cerr << "SDLNet_TCP_Recv Error: " << SDLNet_GetError() << std::endl;
+            // Xử lý lỗi ở đây
+        }
+
+        // Xóa màn hình
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // Màu đen
+        SDL_RenderClear(renderer);
+
+        // Vẽ robot
+        robot.draw(renderer);
+
+        // Hiển thị bản vẽ
+        SDL_RenderPresent(renderer);
+
+        // Độ trễ nhỏ
+        SDL_Delay(10);
+    }
+
+    // Dọn dẹp
+    SDLNet_TCP_Close(clientSocket);
+    SDLNet_Quit();
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+
+    return 0;
+}
