@@ -92,22 +92,9 @@
 *   Tối ưu hóa hiệu suất truyền hình ảnh.
 *   Xử lý lỗi
 
-## Đóng góp
-
-Mọi đóng góp đều được hoan nghênh! Vui lòng tạo Pull Request nếu bạn muốn đóng góp cho dự án.
-
-## Giấy phép
-
-Dự án này được phát hành theo giấy phép MIT.
-
----
 
 **Lưu ý:**
 
 *   Bạn cần thay đổi các thông tin trong file README.md (địa chỉ IP, sơ đồ chân, ...) cho phù hợp với dự án của bạn.
-*   Đây chỉ là một ví dụ cơ bản, bạn có thể thêm nhiều thông tin hơn (ví dụ: hình ảnh, video, hướng dẫn chi tiết, ...) để file README.md trở nên đầy đủ và hấp dẫn hơn.
-*   Format code trong file README.md này có thể hiển thị không hoàn toàn đúng, bạn có thể điều chỉnh lại nếu cần thiết.
-*   Nhớ thay đổi `Giaphoai123` và `12345678` thành SSID và password của mạng Wi-Fi bạn muốn kết nối.
+*   Nhớ thay đổi `wifiname` và `12345678` thành SSID và password của mạng Wi-Fi bạn muốn kết nối.
 *   Thay `192.168.1.102` bằng IP của ESP32-CAM của bạn.
-*   Format lại code của cả hai chương trình (ESP32 và Application) cho dễ nhìn hơn.
-*   Xử lý các lỗi đã nêu ở trên.
