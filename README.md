@@ -4,18 +4,18 @@
 
 Đây là dự án điều khiển xe robot sử dụng ESP32-CAM qua Wi-Fi. Dự án bao gồm hai phần chính:
 
-1.  **Phần sụn (firmware) cho ESP32-CAM:**
+1.  **Phần lập trình cho ESP32-CAM:**
     *   Thiết lập ESP32-CAM làm một máy chủ web (web server).
     *   Điều khiển động cơ của xe (tiến, lùi, trái, phải, dừng).
     *   Truyền hình ảnh từ camera.
     *   Nhận lệnh điều khiển từ client qua TCP socket.
-    *   (Tùy chọn) Gửi trạng thái của xe (vị trí, hướng, pin, ...) về client.
+    *   (Chưa phát triển) Gửi trạng thái của xe (vị trí, hướng, pin, ...) về client.
 2.  **Ứng dụng điều khiển (client):**
     *   Kết nối với ESP32-CAM qua TCP socket.
     *   Gửi lệnh điều khiển đến ESP32-CAM.
     *   Hiển thị giao diện người dùng (UI) để điều khiển xe.
-    *   (Tùy chọn) Hiển thị hình ảnh từ camera.
-    *   (Tùy chọn) Hiển thị trạng thái của xe.
+    *   (Chưa tích hợp vào app sẽ phát triển sau) Hiển thị hình ảnh từ camera.
+    *   (Chưa tích hợp vào app sẽ phát triển sau) Hiển thị trạng thái của xe.
 
 ## Yêu cầu
 
@@ -23,10 +23,8 @@
 
 *   ESP32-CAM
 *   Khung xe robot (bao gồm động cơ, bánh xe, ...)
-*   Mạch cầu H (L298N, L293D, ...) để điều khiển động cơ
+*   Mạch cầu H (L298N) để điều khiển động cơ
 *   Pin và nguồn điện
-*   (Tùy chọn) Cảm biến (siêu âm, hồng ngoại, ...)
-*   (Tùy chọn) LED, còi, ...
 
 ### Phần mềm
 
@@ -37,7 +35,6 @@
     *   Ngôn ngữ: C++
     *   Thư viện: SDL2, SDL2\_net
     *   (Tùy chọn) Thư viện JSON (ví dụ: nlohmann/json cho C++)
-    *   (Tùy chọn) Thư viện để decode JPEG (nếu cần hiển thị hình ảnh)
 
 ## Cài đặt
 
@@ -57,13 +54,16 @@
 2.  Mở mã nguồn ứng dụng điều khiển bằng trình soạn thảo (ví dụ: VS Code, Code::Blocks).
 3.  (Tùy chọn) Sửa đổi địa chỉ IP của ESP32-CAM trong mã nguồn.
 4.  Biên dịch mã nguồn (sử dụng `g++` hoặc IDE).
-5.  Chạy ứng dụng.
+5.  Tạo file CMakeLists.txt đính kèm bên trên.
+6.  Gõ "cmake -S . -B .   " trong terminal.
+7.  Tiếp theo gõ "make" hoặc "mingw32-make" tùy máy, xong gõ "./main  " để chạy nhé.
+8.  Chạy ứng dụng.
 
 ## Cách sử dụng
 
 1.  Cấp nguồn cho xe robot.
 2.  Chạy ứng dụng điều khiển.
-3.  Nhập địa chỉ IP của ESP32-CAM (nếu cần).
+3.  Nhập địa chỉ IP của ESP32-CAM.
 4.  Sử dụng các phím mũi tên (hoặc các nút điều khiển trên giao diện) để điều khiển xe.
 
 ## Sơ đồ chân kết nối (tham khảo)
