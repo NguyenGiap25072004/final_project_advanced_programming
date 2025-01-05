@@ -6,7 +6,7 @@
 #include "soc/rtc_cntl_reg.h"  // Disable brownour problems
 
 // Thông tin đăng nhập Wi-Fi
-const char* ssid = "Giaphoai123";
+const char* ssid = "wifiname";
 const char* password = "12345678";
 
 // Cổng để lắng nghe các kết nối đến
